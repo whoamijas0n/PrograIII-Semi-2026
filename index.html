@@ -85,18 +85,39 @@
 
         .badge-vigente {
             background-color: #10b981;
+            color: #ffffff;
+        }
+
+        .badge-vencido {
+            background-color: #dc2626;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .badge-futuro {
+            background-color: #2563eb;
+            color: #ffffff;
+        }
+
+        .badge-cerrado {
+            background-color: #64748b;
+            color: #ffffff;
         }
 
         .badge-historico {
-            background-color: #64748b;
+            background-color: #dc2626;
+            color: #ffffff;
+            font-weight: 600;
         }
 
         .badge-facturado {
             background-color: #8b5cf6;
+            color: #ffffff;
         }
 
         .badge-pendiente {
             background-color: #f59e0b;
+            color: #ffffff;
         }
     </style>
 </head>
@@ -889,9 +910,25 @@
             }
 
             let filas = '';
+            const hoy = new Date();
+            const hoyStr = hoy.toISOString().slice(0, 10);
+
             periodos.forEach(p => {
-                const esVigente = p.estado === 'vigente';
+                const dDesde = String(p.fecha_desde).slice(0, 10);
+                const dHasta = String(p.fecha_hasta).slice(0, 10);
                 const esFacturado = p.facturado == 1;
+                const estado = (p.estado || p.estado_calculado || '').toLowerCase();
+
+                let estadoBadge = '';
+                if (estado === 'cerrado') {
+                    estadoBadge = '<span class="badge badge-cerrado"><i class="bi bi-lock-fill me-1"></i>Cerrado</span>';
+                } else if (dHasta <= hoyStr || estado === 'vencido' || estado === 'historico') {
+                    estadoBadge = '<span class="badge badge-vencido"><i class="bi bi-x-circle-fill me-1"></i>Vencido</span>';
+                } else if (dDesde <= hoyStr && hoyStr < dHasta) {
+                    estadoBadge = '<span class="badge badge-vigente"><i class="bi bi-check-circle-fill me-1"></i>Vigente</span>';
+                } else {
+                    estadoBadge = '<span class="badge badge-futuro"><i class="bi bi-calendar-event me-1"></i>Por Iniciar</span>';
+                }
 
                 filas += `
                     <tr>
@@ -900,11 +937,7 @@
                         <td class="fw-bold">$${parseFloat(p.balance).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                         <td><span class="badge bg-light text-dark border">${p.codigoProducto || '11801'}</span></td>
                         <td class="fw-bold text-primary">$${parseFloat(p.precio_mensual).toFixed(2)}</td>
-                        <td>
-                            <span class="badge ${esVigente ? 'badge-vigente' : 'badge-historico'}">
-                                ${esVigente ? 'Vigente' : 'Histórico'}
-                            </span>
-                        </td>
+                        <td>${estadoBadge}</td>
                         <td>
                             <span class="badge ${esFacturado ? 'badge-facturado' : 'badge-pendiente'}">
                                 ${esFacturado ? 'Facturado' : 'Pendiente'}

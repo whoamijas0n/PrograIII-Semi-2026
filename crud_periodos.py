@@ -42,19 +42,32 @@ class crud_periodos:
         total_administrativo = Decimal("0.00")
         impuesto_vigente = Decimal("0.00")
         periodo_vigente = None
-        hoy_str = datetime.now().strftime("%Y-%m-%d")
+        hoy = datetime.now().date()
 
         for p in periodos:
             p_mensual = Decimal(str(p["precio_mensual"]))
             total_administrativo += p_mensual
 
-            d_desde = str(p["fecha_desde"])[:10]
-            d_hasta = str(p["fecha_hasta"])[:10]
+            d_desde = datetime.strptime(str(p["fecha_desde"])[:10], "%Y-%m-%d").date()
+            d_hasta = datetime.strptime(str(p["fecha_hasta"])[:10], "%Y-%m-%d").date()
 
-            # Un período es vigente si su estado es 'vigente' o si la fecha de hoy cae en [Desde, Hasta)
-            if p.get("estado") == "vigente" or (d_desde <= hoy_str < d_hasta):
+            # Determinar estado según vigencia de fecha respecto a hoy:
+            # - Si la fecha final es menor o igual a hoy (el período ya venció): 'vencido'
+            # - Si hoy se encuentra en el rango [Desde, Hasta) (año o período actual no terminado): 'vigente'
+            # - Si la fecha inicial es mayor a hoy: 'futuro'
+            if p.get("estado") == "cerrado":
+                estado_determinado = "cerrado"
+            elif d_hasta <= hoy:
+                estado_determinado = "vencido"
+            elif d_desde <= hoy < d_hasta:
+                estado_determinado = "vigente"
                 periodo_vigente = p
                 impuesto_vigente = p_mensual
+            else:
+                estado_determinado = "futuro"
+
+            p["estado"] = estado_determinado
+            p["estado_calculado"] = estado_determinado
 
         # Si no hubo período que cubra hoy pero hay uno con estado 'vigente', usar ese
         if not periodo_vigente and periodos:
@@ -161,16 +174,27 @@ class crud_periodos:
                     """
                     operaciones.append((sql_cerrar, (usuario, fecha_calculo, idCliente, idProducto)))
 
+                d_desde = datetime.strptime(fecha_desde[:10], "%Y-%m-%d").date()
+                d_hasta = datetime.strptime(fecha_hasta[:10], "%Y-%m-%d").date()
+                hoy = datetime.now().date()
+
+                if d_hasta <= hoy:
+                    estado_insert = "vencido"
+                elif d_desde <= hoy < d_hasta:
+                    estado_insert = "vigente"
+                else:
+                    estado_insert = "futuro"
+
                 sql_insert = """
                     INSERT INTO periodos_actividades_economicas
                     (idCliente, idProducto, idTarifa, fecha_desde, fecha_hasta, balance, cantidad,
                      precio_mensual, subtotal, version_formula, formula_detalle, estado, facturado,
                      fecha_calculo, usuario_creacion, fecha_creacion)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'vigente', 0, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, %s, %s)
                 """
                 valores_insert = (
                     idCliente, idProducto, idTarifa, fecha_desde, fecha_hasta, balance, cantidad,
-                    precio_mensual, subtotal, version_formula, formula_detalle,
+                    precio_mensual, subtotal, version_formula, formula_detalle, estado_insert,
                     fecha_calculo, usuario, fecha_calculo
                 )
                 operaciones.append((sql_insert, valores_insert))
